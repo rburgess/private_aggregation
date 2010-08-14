@@ -1,0 +1,217 @@
+<?php
+
+define('PAG_FOLDER',    'pag');
+define('PAG_AGG_CSS', true);
+define('PAG_AGG_JS', true);
+define('PAG_MINIFY_CSS', true);
+define('PAG_MINIFY_JS', true);
+define('PAG_MINIFY_JS_TYPE', 'JSMin');
+
+
+function private_aggregator_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'system_performance_settings') {
+	if (variable_get('file_downloads', 1) == 2){
+		$form['bandwidth_optimizations']['private_aggregation'] = array(
+			'#type' => 'fieldset',
+			'#title' => t('Private Optimization Settings'),
+			'#weight' => 5,
+			'#collapsible' => TRUE,
+			'#collapsed' => FALSE,
+			'#description' => t('By default drupal doesn\'t allow css and javascript optimization when in private file mode. use the settings below to bypass this'),
+		);
+		
+	  	//CSS
+	  	 $form['bandwidth_optimizations']['private_aggregation']['PAG_AGG_CSS'] = array(
+	      '#type' => 'checkbox',
+	      '#title' => t('Aggregate CSS'),
+	      '#description' => t('would you like to merge all css into a single file where possible?'),
+	      '#default_value' => variable_get('PAG_AGG_CSS', PAG_AGG_CSS),
+	      '#weight' => 2,
+	    );
+	    $form['bandwidth_optimizations']['private_aggregation']['PAG_MINIFY_CSS'] = array(
+	      '#type' => 'checkbox',
+	      '#title' => t('Minify CSS'),
+	      '#description' => t('Would you like the css file to be minified, download sizes can be reduced by 25% or more. Requires CSS Aggregation'),
+	      '#default_value' => variable_get('PAG_MINIFY_CSS', PAG_MINIFY_CSS),
+	      '#weight' => 3,
+	    );
+	  	
+		//JS
+	  	$form['bandwidth_optimizations']['private_aggregation']['PAG_AGG_JS'] = array(
+	      '#type' => 'checkbox',
+	      '#title' => t('Aggregate JS'),
+	      '#description' => t('would you like to merge all js into a single file where possible?'),
+	      '#default_value' => variable_get('PAG_AGG_JS', PAG_AGG_JS),
+	      '#weight' => 4,
+	    );
+	    
+	    $form['bandwidth_optimizations']['private_aggregation']['PAG_MINIFY_JS'] = array(
+	      '#type' => 'checkbox',
+	      '#title' => t('Minify JS'),
+	      '#description' => t('Would you like the js file to be minified, download sizes can be reduced by 25% or more. Requires CSS Aggregation'),
+	      '#default_value' => variable_get('PAG_MINIFY_JS', true),
+	      '#weight' => 5,
+	    );
+  	}
+  }
+}
+
+function private_aggregator_init(){
+	
+	$folder_path = getenv("DOCUMENT_ROOT") . '/' . variable_get('PAG_FOLDER', PAG_FOLDER);
+	
+	if (!file_exists($folder_path)){
+		if (is_writeable('/')){
+			mkdir($folder_path);
+		}else{
+			watchdog('private_agg', "The private aggregation folder doesn't exist and could not be created.", WATCHDOG_ERROR);
+			drupal_set_message("The private aggregation folder doesn't exist and could not be created.", 'error');
+		}
+	}else{
+		if (!is_writeable($folder_path)){
+			watchdog('private_agg', "The private aggregation folder exists but is not writeable.", WATCHDOG_ERROR);
+			drupal_set_message("The private aggregation folder exists but is not writeable.", 'error');
+		}
+	}
+}
+
+/**
+ * Implementation of hook_theme_registry_alter().
+ *
+ * Make rivate_aggregator's page preprocess function run *after* everything else's (even jQuery Update).
+ */
+function private_aggregator_theme_registry_alter(&$theme_registry) {
+  if (isset($theme_registry['page'])) {
+    // If javascript_aggregator's preprocess function is there already, remove it.
+    if ($key = array_search('private_aggregator_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+      unset($theme_registry['page']['preprocess functions'][$key]);
+    }
+    // Now tack it on at the end so it runs after everything else.
+    if (variable_get('file_downloads', 1) == 2){
+    $theme_registry['page']['preprocess functions'][] = 'private_aggregator_preprocess_page';
+    }
+  } 
+}
+
+function private_aggregator_preprocess_page(&$variables) {
+	
+	//Process CSS
+	if (variable_get('PAG_AGG_CSS', PAG_AGG_CSS)){
+		$variables['css'] = private_aggregator_process_css($variables['css']);
+		$variables['styles'] = drupal_get_css($variables['css']);
+	}
+	//Process Rendered JS
+	if (variable_get('PAG_AGG_JS', PAG_AGG_JS)){
+		$variables['scripts'] = private_aggregator_process_js($variables['scripts']);
+	}
+
+}
+
+function private_aggregator_process_css($css){
+	$pag_folder = variable_get('PAG_FOLDER', PAG_FOLDER);
+	foreach ($css as $type_name=>$type){
+		$file_contents = '';
+		foreach ($type as $origin_name=>$origin){
+			foreach ($origin as $file_path=>$cacheable){
+				if ($cacheable){
+					if (file_exists($file_path)){
+						//The code below was taken from the core drupal aggregation functions (if it aint broke don't fix it)
+						$temp_contents = file_get_contents($file_path);
+						// Remove multiple charset declarations for standards compliance (and fixing Safari problems)
+						$temp_contents = preg_replace('/^@charset\s+[\'"](\S*)\b[\'"];/i', '', $temp_contents);
+						// Return the path to where this CSS file originated from, stripping off the name of the file at the end of the path.
+						$path = base_path() . substr($file_path, 0, strrpos($file_path, '/')) .'/';
+						// Wraps all @import arguments in url().
+						$temp_contents = preg_replace('/@import\s+(?!url)[\'"]?(\S*)\b[\'"]?/i', '@import url("\1")', $temp_contents);
+						// Fix all paths within this CSS file, ignoring absolute paths.
+						$temp_contents .= preg_replace('/url\(([\'"]?)(?![a-z]+:)/i', 'url(\1'. $path . '\2', $temp_contents);
+	
+						$file_contents .= $temp_contents;
+						
+						unset($css[$type_name][$origin_name][$file_path]);
+					}
+				}
+			}
+		}
+		
+		
+		
+		$md5hash = md5($file_contents);
+		$path = $pag_folder.'/css-'.$type_name.'-'.$md5hash.'.css';
+		$css[$type_name]['module'][$path] = false;
+		$full_path = getenv("DOCUMENT_ROOT"). '/' . $path;
+		
+		if (!file_exists($full_path)){	
+			if (variable_get('PAG_MINIFY_CSS', PAG_MINIFY_CSS)){
+				require_once dirname(__FILE__) . '/libs/yui-compressor/lib/Minify/CSS.php';
+				$minifier = new Minify_CSS;
+				$file_contents = $minifier->minify($file_contents);
+			}
+			
+		
+			file_put_contents($full_path, $file_contents);
+		}
+	}
+
+	return $css;
+}
+
+
+function private_aggregator_process_js($js){
+	$pag_folder = variable_get('PAG_FOLDER', PAG_FOLDER);
+	$contents = '';
+	$not_agged = array();
+	$path_to_files_directory = base_path() . file_directory_path();
+	
+	//Regex to find each script tag and pull out the src attribute. {Provided by Lewis Peckover}
+    $src = '/<script\s+[^>]*?src="(.*?)".*?>/is';
+    //Regex to find scripts inline scripts. {Provided by Lewis Peckover}
+    $scripts = '/<script(?:\s+[^>]*]?|)>(?!<)(.*?)<\/script>/is';
+
+
+	if (preg_match_all($src, $js, $matches) > 0){
+		foreach ($matches[1] as $key=>$file){
+			$file = substr($file, 1, strrpos($file, '?')-1);
+			
+			if (file_exists($file)){
+				$js = str_replace($matches[0][$key], '', $js);
+				$contents .= file_get_contents($file) .";\n";
+			}else{		
+				$not_agged[] = $file;
+			}
+		}
+	}
+
+	if (preg_match_all($scripts, $js, $matches) > 0){
+		foreach ($matches[1] as $key=>$script){
+			$js = str_replace($matches[0][$key], '', $js);
+			$contents .= $script .";\n";
+		}
+	}
+	
+	$md5hash = md5($contents);
+	$path = $pag_folder.'/js-'.$md5hash.'.js';
+	$full_path = getenv("DOCUMENT_ROOT"). '/' . $path;
+	if (!file_exists($full_path)){
+		if (variable_get('PAG_MINIFY_JS', PAG_MINIFY_JS)){
+			switch (variable_get('PAG_MINIFY_JS_TYPE', PAG_MINIFY_JS_TYPE)){
+				case 'JSMin':
+					require_once dirname(__FILE__) . '/libs/yui-compressor/lib/JSMin.php';
+					$contents = JSMin::minify($contents);
+				break;
+				case 'JSMinPlus':
+					require_once dirname(__FILE__) . '/libs/yui-compressor/lib/JSMinPlus.php';
+					$contents = JSMinPlus::minify($contents);
+				break;
+			} 	
+	    }
+		file_put_contents($full_path, $contents);
+	}
+	$js = '';
+	$js .= '<script type="text/javascript" src="/' . $path . '"></script>';
+	foreach ($not_agged as $file){
+		$js .= '<script type="text/javascript" src="/' . $file . '"></script>';
+	}
+	
+	return $js;
+}

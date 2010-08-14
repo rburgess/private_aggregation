@@ -1,0 +1,6 @@
+; $Id: private_aggregator.info,v 1.1.2.1.2.3.2.2 2009/10/04 07:24:50 mikeytown2 Exp $
+name = Private Aggregator
+description = Aggregates and Minifies JS and CSS even in private file mode
+package = Caching
+core = 6.x
+
