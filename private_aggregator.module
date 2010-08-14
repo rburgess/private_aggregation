@@ -78,7 +78,8 @@ function private_aggregator_init(){
 /**
  * Implementation of hook_theme_registry_alter().
  *
- * Make rivate_aggregator's page preprocess function run *after* everything else's (even jQuery Update).
+ * Make private_aggregator's page preprocess function run *after* everything else's.
+ * 
  */
 function private_aggregator_theme_registry_alter(&$theme_registry) {
 	if (isset($theme_registry['page'])) {
@@ -133,8 +134,6 @@ function private_aggregator_process_css($css){
 				}
 			}
 		}
-		
-		
 		
 		$md5hash = md5($file_contents);
 		$path = $pag_folder.'/css-'.$type_name.'-'.$md5hash.'.css';
