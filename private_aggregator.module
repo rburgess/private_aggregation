@@ -81,16 +81,16 @@ function private_aggregator_init(){
  * Make rivate_aggregator's page preprocess function run *after* everything else's (even jQuery Update).
  */
 function private_aggregator_theme_registry_alter(&$theme_registry) {
-  if (isset($theme_registry['page'])) {
-    // If javascript_aggregator's preprocess function is there already, remove it.
-    if ($key = array_search('private_aggregator_preprocess_page', $theme_registry['page']['preprocess functions'])) {
-      unset($theme_registry['page']['preprocess functions'][$key]);
-    }
-    // Now tack it on at the end so it runs after everything else.
-    if (variable_get('file_downloads', 1) == 2){
-    $theme_registry['page']['preprocess functions'][] = 'private_aggregator_preprocess_page';
-    }
-  } 
+	if (isset($theme_registry['page'])) {
+		// If javascript_aggregator's preprocess function is there already, remove it.
+		if ($key = array_search('private_aggregator_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+			unset($theme_registry['page']['preprocess functions'][$key]);
+		}
+		// Now tack it on at the end so it runs after everything else.
+		if (variable_get('file_downloads', 1) == 2){
+			$theme_registry['page']['preprocess functions'][] = 'private_aggregator_preprocess_page';
+		}
+	} 
 }
 
 function private_aggregator_preprocess_page(&$variables) {
@@ -164,9 +164,9 @@ function private_aggregator_process_js($js){
 	$path_to_files_directory = base_path() . file_directory_path();
 	
 	//Regex to find each script tag and pull out the src attribute. {Provided by Lewis Peckover}
-    $src = '/<script\s+[^>]*?src="(.*?)".*?>/is';
+	$src = '/<script\s+[^>]*?src="(.*?)".*?>/is';
     //Regex to find scripts inline scripts. {Provided by Lewis Peckover}
-    $scripts = '/<script(?:\s+[^>]*]?|)>(?!<)(.*?)<\/script>/is';
+	$scripts = '/<script(?:\s+[^>]*]?|)>(?!<)(.*?)<\/script>/is';
 
 
 	if (preg_match_all($src, $js, $matches) > 0){
