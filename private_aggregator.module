@@ -10,13 +10,14 @@ define('PAG_MINIFY_JS_TYPE', 'JSMin');
 
 function private_aggregator_form_alter(&$form, $form_state, $form_id) {
   if ($form_id == 'system_performance_settings') {
-	if (variable_get('file_downloads', 1) == 2){
+
+		$collapsed = (variable_get('file_downloads', 1) == 2 ? false : true);
 		$form['bandwidth_optimizations']['private_aggregation'] = array(
 			'#type' => 'fieldset',
 			'#title' => t('Private Optimization Settings'),
 			'#weight' => 5,
 			'#collapsible' => TRUE,
-			'#collapsed' => FALSE,
+			'#collapsed' => $collapsed,
 			'#description' => t('By default drupal doesn\'t allow css and javascript optimization when in private file mode. use the settings below to bypass this'),
 		);
 		
@@ -52,7 +53,7 @@ function private_aggregator_form_alter(&$form, $form_state, $form_id) {
 	      '#default_value' => variable_get('PAG_MINIFY_JS', true),
 	      '#weight' => 5,
 	    );
-  	}
+  	
   }
 }
 
