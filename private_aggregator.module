@@ -76,6 +76,13 @@ function private_aggregator_init(){
 	}
 }
 
+function private_aggregator_flush_caches(){
+	$folder_path = getenv("DOCUMENT_ROOT") . '/' . variable_get('PAG_FOLDER', PAG_FOLDER) . '/';
+	foreach(glob($folder_path.'*.*') as $file){
+		unlink($file);
+	}
+}
+
 /**
  * Implementation of hook_theme_registry_alter().
  *
