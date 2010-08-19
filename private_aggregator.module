@@ -63,7 +63,7 @@ function private_aggregator_init(){
 	
 	if (!file_exists($folder_path)){
 		if (is_writeable('/')){
-			mkdir($folder_path);
+			mkdir($folder_path); 
 		}else{
 			watchdog('private_agg', "The private aggregation folder doesn't exist and could not be created.", WATCHDOG_ERROR);
 			drupal_set_message("The private aggregation folder doesn't exist and could not be created.", 'error');
